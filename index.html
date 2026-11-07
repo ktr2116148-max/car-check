@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#111827">
+<title>차량 실시간 인식 · 출석체크</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{--bg:#f4f5f7;--card:#fff;--ink:#16181d;--sub:#6b7280;--line:#e5e7eb;--pri:#1d4ed8;--ok:#059669;--okbg:#ecfdf5;--warn:#b45309;--warnbg:#fffbeb;--bad:#b91c1c;--badbg:#fef2f2}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1115;--card:#181b21;--ink:#eef0f3;--sub:#9aa1ad;--line:#2a2e36;--pri:#60a5fa;--ok:#34d399;--okbg:#0d2a22;--warn:#fbbf24;--warnbg:#2a2210;--bad:#f87171;--badbg:#2b1414}}
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR",sans-serif;background:var(--bg);color:var(--ink);-webkit-text-size-adjust:100%;padding-bottom:env(safe-area-inset-bottom)}
+header{position:sticky;top:0;z-index:5;background:var(--card);border-bottom:1px solid var(--line);padding:calc(10px + env(safe-area-inset-top)) 16px 0}
+.top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+h1{font-size:17px;margin:0}
+.count{font-size:14px;color:var(--sub)}.count b{color:var(--ok);font-size:20px}
+.sync{font-size:11px;color:var(--sub);margin-left:6px}
+nav{display:flex;margin-top:8px}
+nav button{flex:1;border:0;background:none;padding:10px 0 12px;font-size:15px;color:var(--sub);border-bottom:3px solid transparent;font-weight:600}
+nav button.on{color:var(--pri);border-color:var(--pri)}
+main{padding:12px 12px 24px;max-width:640px;margin:0 auto}
+section{display:none}section.on{display:block}
+.cam{position:relative;width:100%;aspect-ratio:3/4;max-height:42vh;background:#000;border-radius:16px;overflow:hidden}
+.cam video{width:100%;height:100%;object-fit:cover;display:block;transform-origin:center}
+.guide{position:absolute;left:8%;width:84%;top:50%;transform:translateY(-50%);aspect-ratio:4.4/1;border:3px solid rgba(255,255,255,.9);border-radius:10px;box-shadow:0 0 0 9999px rgba(0,0,0,.25)}
+.guide.hit{border-color:#34d399}
+.guide.send{border-color:#60a5fa}
+.camtxt{position:absolute;left:0;right:0;bottom:10px;text-align:center;color:#fff;font-size:14px;text-shadow:0 1px 3px #000;padding:0 8px}
+.camtop{position:absolute;left:0;right:0;top:10px;text-align:center;color:#fff;font-size:13px;text-shadow:0 1px 3px #000}
+.zoomBox{position:absolute;left:12px;right:12px;bottom:34px;display:none;align-items:center;gap:8px;color:#fff;font-size:13px;text-shadow:0 1px 3px #000}.zoomBox input{flex:1}
+.startBtn{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;background:#111827;color:#fff;border:0;font-size:20px;font-weight:700;width:100%}
+.startBtn small{font-size:13px;font-weight:400;opacity:.8;padding:0 20px;line-height:1.5}
+.ctrl{display:flex;gap:8px;margin-top:10px}
+.scanInfo{font-size:12px;color:var(--sub);margin-top:6px;text-align:right}
+input[type=text],input[type=search],input[type=tel],input[type=url],input[type=password],select{flex:1;min-width:0;font-size:17px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--ink)}
+.btn{border:1px solid var(--line);background:var(--card);color:var(--ink);font-size:15px;padding:12px 16px;border-radius:12px;font-weight:600;cursor:pointer;white-space:nowrap;text-decoration:none;display:inline-block}
+.btn.pri{background:var(--pri);border-color:var(--pri);color:#fff}
+.btn.danger{color:var(--bad);border-color:var(--bad)}
+.btn.sm{padding:7px 12px;font-size:13px}
+#result{margin-top:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px}
+.person{display:flex;gap:14px;align-items:center}
+.photo{width:100px;height:124px;border-radius:14px;object-fit:cover;background:var(--line);flex:none;display:flex;align-items:center;justify-content:center;font-size:38px;font-weight:700;color:var(--sub)}
+.org{font-size:15px;color:var(--sub)}.name{font-size:28px;font-weight:800;margin:2px 0}.ttl{font-size:17px}
+.plate{display:inline-block;margin-top:6px;font-size:15px;font-weight:700;border:2px solid var(--ink);border-radius:6px;padding:2px 8px}
+.status{margin-top:12px;padding:12px 14px;border-radius:12px;font-size:17px;font-weight:700;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.status.ok{background:var(--okbg);color:var(--ok)}.status.dup{background:var(--warnbg);color:var(--warn)}.status.bad{background:var(--badbg);color:var(--bad)}
+.list{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.item{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px 12px}
+.thumb{width:44px;height:52px;border-radius:8px;object-fit:cover;background:var(--line);flex:none;display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--sub)}
+.mid{flex:1;min-width:0}.n{font-weight:700;font-size:16px}.s{font-size:13px;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.s.w{white-space:normal;overflow:visible}.s.pl{color:var(--ink);font-weight:600;margin-top:1px}
+.item[data-open],.item[data-k]{cursor:pointer}
+.info{margin-top:12px;border-top:1px solid var(--line);padding-top:8px;font-size:15px;line-height:1.5}
+.irow{display:flex;gap:10px;padding:6px 0;border-bottom:1px dashed var(--line)}.irow:last-child{border-bottom:0}
+.irow>span{flex:none;width:52px;color:var(--sub);font-size:13px;padding-top:2px}
+#modal{position:fixed;inset:0;z-index:20;background:rgba(0,0,0,.45);display:none;align-items:flex-end;justify-content:center}
+#modal.on{display:flex}
+#modal .sheet{position:relative;background:var(--card);width:100%;max-width:560px;max-height:88vh;overflow:auto;border-radius:20px 20px 0 0;padding:20px 18px calc(20px + env(safe-area-inset-bottom))}
+#modal .x{position:absolute;right:12px;top:12px;border:0;background:var(--line);color:var(--ink);width:34px;height:34px;border-radius:50%;font-size:16px}
+.chk{font-size:13px;font-weight:700;padding:6px 10px;border-radius:999px;border:1px solid var(--line);background:none;color:var(--sub);white-space:nowrap}
+.chk.on{background:var(--okbg);color:var(--ok);border-color:transparent}
+.filters{display:flex;gap:6px;margin-top:10px}
+.filters button{border:1px solid var(--line);background:var(--card);color:var(--sub);border-radius:999px;padding:6px 12px;font-size:13px;font-weight:600}
+.filters button.on{background:var(--ink);color:var(--bg)}
+.box{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:12px}
+.box h3{margin:0 0 6px;font-size:16px}.box p{margin:0 0 10px;font-size:13px;color:var(--sub);line-height:1.5}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;align-items:center}
+.msg{font-size:13px;margin-top:8px;color:var(--sub);white-space:pre-line}
+.form{display:grid;grid-template-columns:1fr 1fr;gap:8px}.form input{font-size:15px!important;padding:10px 12px!important}
+label.file input{display:none}
+label.inl{display:flex;align-items:center;gap:6px;font-size:14px}
+#toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:12px;font-size:14px;opacity:0;transition:opacity .2s;pointer-events:none;max-width:90vw;z-index:30}
+#toast.on{opacity:1}
+.empty{text-align:center;color:var(--sub);padding:30px 10px;font-size:14px;line-height:1.6}
+</style>
+</head>
+<body>
+<header>
+  <div class="top"><h1>🚗 실시간 차량 인식</h1><div class="count"><b id="cAtt">0</b> / <span id="cAll">0</span><span class="sync" id="syncSt"></span></div></div>
+  <nav><button data-t="scan" class="on">인식</button><button data-t="list">출석현황</button><button data-t="admin">설정</button></nav>
+</header>
+<main>
+<section id="scan" class="on">
+  <div class="cam">
+    <video id="video" playsinline muted></video>
+    <div class="guide" id="guide"></div>
+    <div class="camtop" id="camTop">번호판을 네모 칸 안에 맞추고 잠깐 멈춰주세요</div>
+    <div class="camtxt" id="camTxt"></div>
+    <div id="zoomBox" class="zoomBox"><span>줌</span><input type="range" id="zoom"></div>
+    <button class="startBtn" id="startBtn">▶ 카메라 시작<small>먼저 ‘설정’에서 구글 시트를 연결하세요</small></button>
+  </div>
+  <div class="ctrl">
+    <input type="tel" id="q" placeholder="뒷자리 4숫자 또는 이름" autocomplete="off">
+    <button class="btn pri" id="qBtn">조회</button>
+    <button class="btn" id="diagBtn" style="display:none">🔍</button>
+    <button class="btn" id="torch" style="display:none">🔦</button>
+    <button class="btn" id="stopBtn" style="display:none">정지</button>
+  </div>
+  <div class="scanInfo" id="scanInfo"></div>
+  <div id="result"></div>
+</section>
+
+<section id="list">
+  <input type="search" id="ls" placeholder="이름·소속·차량번호 검색" style="width:100%">
+  <div class="filters"><button data-f="all" class="on">전체</button><button data-f="in">출석</button><button data-f="out">미출석</button></div>
+  <div class="list" id="lst"></div>
+</section>
+
+<section id="admin">
+  <div class="box">
+    <h3>구글 시트 연결</h3>
+    <p>명단·사진·출석을 모든 폰이 같이 씁니다. 번호판 읽기도 이 연결을 통해 합니다.</p>
+    <div class="row"><input type="url" id="cUrl" placeholder="https://script.google.com/macros/s/…/exec"></div>
+    <div class="row"><input type="password" id="cToken" placeholder="접속 토큰"><button class="btn pri" id="saveUrl">연결</button></div>
+    <div class="row"><button class="btn" id="refreshBtn">명단·사진 새로 받기</button><button class="btn" id="linkBtn">스태프용 링크 복사</button></div>
+    <div class="msg" id="urlMsg"></div>
+  </div>
+  <div class="box">
+    <h3>명단 엑셀을 시트에 올리기</h3>
+    <p>열 이름: <b>차량번호, 소속, 이름, 직함</b> (+ 차종, 색상, 운전, 본인 연락처, 수행원, 수행원 연락처, 메모). 시트의 명단이 이 파일 내용으로 <b>바뀝니다</b>. 시트에서 직접 고쳐도 됩니다.</p>
+    <div class="row"><label class="btn pri file">엑셀 선택<input type="file" id="rosterFile" accept=".xlsx,.xls,.csv"></label><button class="btn" id="tplBtn">빈 양식 받기</button></div>
+    <div class="msg" id="rosterMsg"></div>
+  </div>
+  <div class="box">
+    <h3>사진 올리기 (드라이브에 저장)</h3>
+    <p>파일 이름을 <b>이름</b>(홍길동.jpg) 또는 <b>차량번호</b>(12가3456.jpg)로 맞춰 여러 장 선택하세요.</p>
+    <div class="row"><label class="btn pri file">사진 선택<input type="file" id="photoFiles" accept="image/*" multiple></label></div>
+    <div class="msg" id="photoMsg"></div>
+  </div>
+  <div class="box">
+    <h3>한 명씩 추가</h3>
+    <div class="form"><input type="text" id="fPlate" placeholder="차량번호 *"><input type="text" id="fName" placeholder="이름 *"><input type="text" id="fOrg" placeholder="소속"><input type="text" id="fTitle" placeholder="직함"></div>
+    <div class="row"><button class="btn pri" id="addBtn">추가</button></div>
+  </div>
+  <div class="box">
+    <h3>인식 설정</h3>
+    <p>사진 1장마다 Vision 1건이 쓰입니다. 매달 1,000건 무료, 이후 1,000건당 약 1.5달러.</p>
+    <div class="row"><span style="font-size:14px">보내는 간격</span>
+      <select id="gapSel" style="flex:none;font-size:15px;padding:8px 10px"><option value="1000">1초</option><option value="1500">1.5초</option><option value="2000">2초</option><option value="3000">3초</option></select></div>
+    <div class="row"><label class="inl"><input type="checkbox" id="steadyChk"> 카메라가 흔들릴 때는 보내지 않기 (절약)</label></div>
+    <div class="msg" id="usageMsg"></div>
+  </div>
+  <div class="box">
+    <h3>출석 결과</h3>
+    <div class="row"><button class="btn" id="expBtn">엑셀로 받기</button></div>
+  </div>
+  <div class="box">
+    <h3>초기화</h3>
+    <div class="row"><button class="btn danger" id="resetAtt">출석 기록 초기화 (모든 폰)</button></div>
+    <div class="msg" id="resetMsg"></div>
+  </div>
+</section>
+</main>
+<div id="toast"></div>
+<div id="modal" onclick="closeInfo()"></div>
+
+<script>
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const normPlate=s=>String(s||'').replace(/[\s\-·.]/g,'').toUpperCase();
+const d4=s=>String(s||'').replace(/\D/g,'').slice(-4);
+const tm=t=>new Date(t).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'});
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(toast._t);toast._t=setTimeout(()=>t.classList.remove('on'),2200)}
+function editDist(a,b){let p=[...Array(b.length+1).keys()];for(let i=1;i<=a.length;i++){const c=[i];for(let j=1;j<=b.length;j++)c.push(Math.min(p[j]+1,c[j-1]+1,p[j-1]+(a[i-1]===b[j-1]?0:1)));p=c}return p[b.length]}
+
+/* ---------- IndexedDB (이 폰의 임시 저장소) ---------- */
+const idb=(()=>{let p;const open=()=>p||(p=new Promise((res,rej)=>{const r=indexedDB.open('platecheck2',1);r.onupgradeneeded=()=>{const d=r.result;['roster','att','photos','kv'].forEach(n=>d.createObjectStore(n))};r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)}));
+  const run=(st,mode,fn)=>open().then(d=>new Promise((res,rej)=>{const t=d.transaction(st,mode);const req=fn(t.objectStore(st));t.oncomplete=()=>res(req&&req.result);t.onerror=()=>rej(t.error)}));
+  return{get:(st,k)=>run(st,'readonly',s=>s.get(k)),set:(st,k,v)=>run(st,'readwrite',s=>s.put(v,k)),del:(st,k)=>run(st,'readwrite',s=>s.delete(k)),clear:st=>run(st,'readwrite',s=>s.clear()),
+    all:st=>open().then(d=>new Promise((res,rej)=>{const t=d.transaction(st);const s=t.objectStore(st);const k=s.getAllKeys(),v=s.getAll();t.oncomplete=()=>res(k.result.map((x,i)=>[x,v.result[i]]));t.onerror=()=>rej(t.error)}))}})();
+
+let roster=new Map(),att=new Map(),photos=new Map(),byD4=new Map();
+const cfg={url:'',token:'',gap:1500,steady:true};let deviceId='';
+const connected=()=>!!(cfg.url&&cfg.token);
+const pkey=p=>(p.name||'')+'|'+(p.org||'');
+function sibs(k){const p=roster.get(k);if(!p)return [k];const g=pkey(p);return [...roster.keys()].filter(x=>pkey(roster.get(x))===g).sort((a,b)=>(roster.get(a).ord??1e6)-(roster.get(b).ord??1e6))}
+function attOf(k){for(const x of sibs(k))if(att.has(x))return att.get(x);return null}
+function people(){const m=new Map();for(const [k,p] of roster){const g=pkey(p);if(!m.has(g))m.set(g,k)}return [...m.values()]}
+function onePerson(ks){return new Set(ks.map(k=>pkey(roster.get(k)))).size===1}
+const carTxt=p=>p&&p.car?p.car+(p.color?`(${p.color})`:''):'';
+const isTbd=k=>/^미정/.test(k);
+const vehTxt=k=>sibs(k).map(x=>{const c=carTxt(roster.get(x));return (isTbd(x)?'차량 미정':x)+(c?' · '+c:'')}).join(' / ');
+const telHtml=t=>esc(t).replace(/0\d{1,2}-\d{3,4}-\d{4}/g,m=>`<a href="tel:${m.replace(/-/g,'')}" style="color:var(--pri);font-weight:700;text-decoration:none">${m}</a>`);
+function contactOf(k){const out={phone:'',aide:'',aidePhone:''};for(const x of sibs(k)){const p=roster.get(x)||{};for(const f of ['phone','aide','aidePhone'])if(!out[f]&&p[f])out[f]=p[f]}return out}
+const plateTxt=k=>sibs(k).map(x=>isTbd(x)?'차량 미정':x).join(' / ');
+function reindex(){byD4=new Map();for(const [k] of roster){const x=d4(k);if(x.length<4||isTbd(k))continue;if(!byD4.has(x))byD4.set(x,[]);byD4.get(x).push(k)}}
+async function load(){
+  roster=new Map(await idb.all('roster'));att=new Map(await idb.all('att'));
+  for(const u of photos.values())URL.revokeObjectURL(u);photos=new Map((await idb.all('photos')).map(([k,b])=>[k,URL.createObjectURL(b)]));
+  const saved=(await idb.get('kv','cfg'))||{};Object.assign(cfg,saved);
+  $('#cUrl').value=cfg.url;$('#cToken').value=cfg.token;$('#gapSel').value=String(cfg.gap);$('#steadyChk').checked=!!cfg.steady;
+  deviceId=(await idb.get('kv','device'))||('폰-'+Math.random().toString(36).slice(2,6));await idb.set('kv','device',deviceId);
+  reindex();renderAll();
+}
+const saveCfg=()=>idb.set('kv','cfg',{...cfg});
+function avatar(k,p,cls){let u=photos.get(k);if(!u)for(const x of sibs(k))if(photos.get(x)){u=photos.get(x);break}return u?`<img class="${cls}" src="${u}" alt="">`:`<div class="${cls}">${esc((p.name||'?').slice(0,1))}</div>`}
+function renderAll(){const ppl=people();$('#cAll').textContent=ppl.length;$('#cAtt').textContent=ppl.filter(k=>attOf(k)).length;renderList();if(cur)showPerson(cur,false)}
+
+/* tabs */
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x===b));document.querySelectorAll('section').forEach(s=>s.classList.toggle('on',s.id===b.dataset.t))});
+const goTab=t=>document.querySelector(`nav button[data-t=${t}]`).click();
+let filter='all';
+document.querySelectorAll('.filters button').forEach(b=>b.onclick=()=>{filter=b.dataset.f;document.querySelectorAll('.filters button').forEach(x=>x.classList.toggle('on',x===b));renderList()});
+
+/* ---------- 앱스크립트 호출 ---------- */
+// Content-Type을 지정하지 않으면 text/plain으로 보내져서 CORS 사전요청 없이 앱스크립트에 닿습니다.
+async function api(action,data={}){
+  if(!connected())throw new Error('설정에서 구글 시트를 연결하세요');
+  const r=await fetch(cfg.url,{method:'POST',body:JSON.stringify({action,token:cfg.token,...data}),cache:'no-store'});
+  let j;try{j=await r.json()}catch(e){throw new Error('앱스크립트 응답을 읽지 못했어요 (배포 주소·액세스 설정 확인)')}
+  if(!j.ok)throw new Error(j.error||'알 수 없는 오류');
+  return j;
+}
+
+/* ---------- 출석 ---------- */
+let audio=null;
+function beep(ok){try{if(!audio)return;const o=audio.createOscillator(),g=audio.createGain();o.frequency.value=ok?880:330;g.gain.value=.15;o.connect(g);g.connect(audio.destination);o.start();o.stop(audio.currentTime+(ok?.15:.3))}catch(e){}}
+async function checkIn(k,method){const p=roster.get(k);const rec={at:Date.now(),method,synced:false};att.set(k,rec);await idb.set('att',k,rec);renderAll();push('checkin',k,p,rec);return rec}
+const cancelled=new Map();
+async function cancel(k){for(const x of sibs(k))if(att.has(x)){att.delete(x);cancelled.set(x,Date.now());await idb.del('att',x);push('cancel',x,roster.get(x)||{},{})}renderAll()}
+
+/* ---------- 시트 동기화 ---------- */
+let lastSync=0;
+function setSync(ok){if(ok)lastSync=Date.now();$('#syncSt').textContent=!connected()?'':ok?'· 공유 ✓ '+new Date(lastSync).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}):'· 공유 ✗';$('#syncSt').style.color=ok===false?'var(--bad)':''}
+async function push(action,k,p,rec){
+  if(!connected())return false;
+  try{
+    await api(action,{plate:k,name:p.name||'',org:p.org||'',title:p.title||'',at:rec.at||0,method:rec.method||'',device:deviceId});
+    if(action==='checkin'&&att.has(k)){const r=att.get(k);r.synced=true;await idb.set('att',k,r)}
+    setSync(true);return true;
+  }catch(e){setSync(false);return false}
+}
+let pulling=false;
+async function pull(){
+  if(!connected()){setSync(null);return}
+  if(pulling)return;pulling=true;
+  try{
+    for(const [k,r] of [...att])if(!r.synced)await push('checkin',k,roster.get(k)||{},r);
+    const j=await api('att');
+    const remote=new Map(j.rows.map(r=>[normPlate(r.plate),r]));let changed=false;
+    for(const [k,r] of remote)if(!att.has(k)&&!(cancelled.has(k)&&Date.now()-cancelled.get(k)<20000)){const rec={at:r.at||Date.now(),method:r.method||'공유',synced:true};att.set(k,rec);await idb.set('att',k,rec);changed=true}
+    for(const [k,r] of [...att])if(r.synced&&!remote.has(k)){att.delete(k);await idb.del('att',k);changed=true}
+    setSync(true);if(changed)renderAll();
+  }catch(e){setSync(false)}
+  finally{pulling=false}
+}
+setInterval(pull,8000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)pull()});
+
+async function pullRoster(withPhotos,msgEl){
+  if(!connected())return false;
+  const say=m=>{if(msgEl)msgEl.textContent=m};
+  try{
+    say('명단 받는 중…');
+    const r=await api('roster');
+    const ps=r.roster.map(p=>({...p,plate:normPlate(p.plate)})).filter(p=>p.plate&&p.name);
+    await idb.clear('roster');for(let i=0;i<ps.length;i++)await idb.set('roster',ps[i].plate,{...ps[i],ord:i});
+    await load();
+    let ph=0;
+    if(withPhotos){
+      say(`명단 ${ps.length}명 받음. 사진 받는 중…`);
+      const j=await api('photos');
+      await idb.clear('photos');
+      for(const f of j.photos){
+        const k=photoKey(f.name);if(!k)continue;
+        const bin=atob(f.data),u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);
+        await idb.set('photos',k,new Blob([u],{type:f.mime||'image/jpeg'}));ph++;
+      }
+      await load();
+    }
+    say(`명단 ${ps.length}명`+(withPhotos?`, 사진 ${ph}장`:'')+` 받음 (${tm(Date.now())})`);
+    return true;
+  }catch(e){say('명단을 못 받았어요: '+e.message);return false}
+}
+// 사진 파일 이름(이름 또는 차량번호) → 명단 키
+function photoKey(name){const np=normPlate(name);if(roster.has(np))return np;const m=[...roster.entries()].filter(([,p])=>p.name===name.trim());if(m.length&&m.every(([,p])=>pkey(p)===pkey(m[0][1])))return m[0][0];return null}
+
+async function connect(){
+  cfg.url=$('#cUrl').value.trim();cfg.token=$('#cToken').value.trim();await saveCfg();
+  const msg=$('#urlMsg');
+  if(!connected()){msg.textContent='주소와 토큰을 모두 넣어주세요.';$('#syncSt').textContent='';return}
+  msg.textContent='연결 확인 중…';
+  try{
+    const p=await api('ping');
+    showUsage(p.usage);
+    if(!p.visionKey)msg.textContent='연결은 됐지만 앱스크립트에 VISION_API_KEY가 없어요. 번호판 인식이 안 됩니다.';
+    if(await pullRoster(true,p.visionKey?msg:null))pull();
+    if(!p.visionKey)return;
+  }catch(e){msg.textContent='연결 실패: '+e.message}
+}
+$('#saveUrl').onclick=connect;
+$('#refreshBtn').onclick=()=>{if(!connected()){toast('먼저 시트를 연결하세요');return}pullRoster(true,$('#urlMsg'))};
+$('#linkBtn').onclick=async()=>{
+  if(!connected()){toast('먼저 시트를 연결하세요');return}
+  const link=location.origin+location.pathname+'#url='+encodeURIComponent(cfg.url)+'&token='+encodeURIComponent(cfg.token);
+  try{await navigator.clipboard.writeText(link);toast('복사됨 — 스태프에게만 보내세요 (링크에 토큰 포함)')}catch(e){$('#urlMsg').textContent='스태프용 링크 (토큰 포함, 외부 공유 금지):\n'+link}
+};
+setInterval(()=>{if(connected())pullRoster(false)},120000);
+
+/* ---------- 결과 카드 ---------- */
+let cur=null;
+function showPerson(k,fresh){
+  const p=roster.get(k);if(!p){cur=null;$('#result').innerHTML='';return}cur=k;const a=attOf(k);
+  const st=a?(fresh?`<div class="status ok">✓ 출석 완료 · ${tm(a.at)}<button class="btn sm" data-undo>취소</button></div>`:`<div class="status dup">이미 출석 · ${tm(a.at)}<button class="btn sm" data-undo>취소</button></div>`)
+          :`<div class="status bad">미출석<button class="btn sm pri" data-in>출석 처리</button></div>`;
+  $('#result').innerHTML=`<div class="card"><div class="person">${avatar(k,p,'photo')}<div><div class="org">${esc(p.org)}</div><div class="name">${esc(p.name)}</div><div class="ttl">${esc(p.title)}</div><span class="plate">${esc(plateTxt(k))}</span></div></div>${infoLines(k,true)}${st}<div class="row" style="margin-top:8px"><button class="btn sm" data-info>상세 정보 · 연락처</button></div></div>`;
+  const u=$('#result [data-undo]');if(u)u.onclick=()=>cancel(k);
+  const di=$('#result [data-info]');if(di)di.onclick=()=>openInfo(k);
+  const i=$('#result [data-in]');if(i)i.onclick=async()=>{await checkIn(k,'수동');showPerson(k,true)};
+}
+// 수행원 이름과 연락처를 "/"로 나눠 짝지어 표시
+function aideHtml(c){
+  const ns=(c.aide||'').split('/').map(s=>s.trim()).filter(Boolean),ps=(c.aidePhone||'').split('/').map(s=>s.trim()).filter(Boolean);
+  if(ns.length&&ns.length===ps.length)return ns.map((n,i)=>`${esc(n)} ${telHtml(ps[i])}`).join('<br>');
+  return [...ns.map(esc),...ps.map(telHtml)].join('<br>');
+}
+function infoLines(k,compact){
+  const p=roster.get(k)||{},c=contactOf(k);const L=[];
+  const veh=sibs(k).map(x=>{const q=roster.get(x)||{};const bits=[carTxt(q),q.drive].filter(Boolean).join(' · ');return `<div><b>${esc(isTbd(x)?'차량 미정':x)}</b>${bits?' · '+esc(bits):''}${q.memo&&!compact?`<div style="color:var(--sub);font-size:13px">${esc(q.memo)}</div>`:''}</div>`}).join('');
+  L.push(`<div class="irow"><span>차량</span><div>${veh}</div></div>`);
+  if(c.phone)L.push(`<div class="irow"><span>본인</span><div>${telHtml(c.phone)}</div></div>`);
+  if(c.aide||c.aidePhone)L.push(`<div class="irow"><span>수행원</span><div>${aideHtml(c)}</div></div>`);
+  if(compact&&p.memo)L.push(`<div class="irow"><span>메모</span><div>${esc(p.memo)}</div></div>`);
+  return `<div class="info">${L.join('')}</div>`;
+}
+function openInfo(k){
+  const p=roster.get(k);if(!p)return;const a=attOf(k);
+  const st=a?`<div class="status ok">✓ 출석 · ${tm(a.at)}<button class="btn sm" data-pundo>취소</button></div>`:`<div class="status bad">미출석<button class="btn sm pri" data-pin>출석 처리</button></div>`;
+  $('#modal').innerHTML=`<div class="sheet" onclick="event.stopPropagation()"><button class="x" data-close>✕</button><div class="person">${avatar(k,p,'photo')}<div><div class="org">${esc(p.org)}</div><div class="name">${esc(p.name)}</div><div class="ttl">${esc(p.title)}</div></div></div>${infoLines(k,false)}${st}</div>`;
+  $('#modal').classList.add('on');
+  $('#modal [data-close]').onclick=closeInfo;
+  const u=$('#modal [data-pundo]');if(u)u.onclick=async()=>{await cancel(k);openInfo(k)};
+  const i=$('#modal [data-pin]');if(i)i.onclick=async()=>{await checkIn(k,'수동');openInfo(k)};
+}
+function closeInfo(){$('#modal').classList.remove('on');$('#modal').innerHTML=''}
+function showCands(keys,label,auto=true){
+  {const seen=new Set();keys=keys.filter(k=>{const g=pkey(roster.get(k));if(seen.has(g))return false;seen.add(g);return true})}
+  if(auto&&keys.length===1){hitKey(keys[0],'카메라');return}
+  cur=null;
+  const head=auto?`${esc(label)} 후보 ${keys.length}명 — 맞는 사람을 누르세요`:`${esc(label)}<br><small style="font-weight:500">번호판을 눈으로 확인하고, 맞으면 누르세요. 아니면 일반 차량이에요.</small>`;
+  $('#result').innerHTML=`<div class="status dup" style="display:block">${head}</div><div class="list">`+keys.map(k=>{const p=roster.get(k);return `<div class="item" data-k="${esc(k)}">${avatar(k,p,'thumb')}<div class="mid"><div class="n">${esc(p.name)}</div><div class="s w">${esc(p.org)} ${esc(p.title)}</div><div class="s w pl"><b>${esc(plateTxt(k))}</b></div></div>${attOf(k)?'<span class="chk on">이미 출석</span>':''}</div>`}).join('')+'</div>';
+  $('#result').querySelectorAll('.item').forEach(el=>el.onclick=async()=>{const k=el.dataset.k;const fresh=!attOf(k);if(fresh)await checkIn(k,'카메라');showPerson(k,fresh)});
+}
+async function hitKey(k,method){const fresh=!attOf(k);if(fresh)await checkIn(k,method);beep(true);if(navigator.vibrate)navigator.vibrate(fresh?120:[60,60,60]);showPerson(k,fresh)}
+
+/* 수동 조회 */
+$('#qBtn').onclick=()=>{
+  const q=$('#q').value.trim();if(!q)return;const n=normPlate(q);
+  let keys=roster.has(n)?[n]:[];
+  if(!keys.length&&/\d/.test(q)){const x=d4(n);if(x.length===4)keys=byD4.get(x)||[]}
+  if(!keys.length&&!/\d/.test(q))keys=[...roster.keys()].filter(k=>(roster.get(k).name||'').includes(q));
+  if(keys.length===1)hitKey(keys[0],'수동');else if(keys.length>1)showCands(keys,q);else{cur=null;$('#result').innerHTML=`<div class="status bad">명단에 없어요 (${esc(q)})</div>`}
+};
+$('#q').addEventListener('keydown',e=>{if(e.key==='Enter')$('#qBtn').click()});
+
+/* ---------- 카메라 ---------- */
+const video=$('#video');let stream=null,track=null,wake=null,scanning=false,busy=false,hwZoom=false;
+function setupZoom(){
+  const z=$('#zoom');let caps={};try{caps=track&&track.getCapabilities?track.getCapabilities():{}}catch(e){}
+  if(caps.zoom&&caps.zoom.max>caps.zoom.min){
+    hwZoom=true;video.style.transform='';
+    z.min=caps.zoom.min;z.max=Math.min(caps.zoom.max,8);z.step=caps.zoom.step||0.1;
+    let c=caps.zoom.min;try{c=track.getSettings().zoom||caps.zoom.min}catch(e){}z.value=c;
+    z.oninput=()=>track.applyConstraints({advanced:[{zoom:Number(z.value)}]}).catch(()=>{});
+  }else{
+    hwZoom=false;z.min=1;z.max=4;z.step=0.1;z.value=1;video.style.transform='';
+    z.oninput=()=>{video.style.transform=Number(z.value)>1?`scale(${z.value})`:''};
+  }
+  $('#zoomBox').style.display='flex';
+}
+$('#startBtn').onclick=async()=>{
+  if(!connected()){toast('먼저 설정에서 구글 시트를 연결하세요');goTab('admin');return}
+  try{audio=audio||new (window.AudioContext||window.webkitAudioContext)()}catch(e){}
+  $('#startBtn').innerHTML='카메라 켜는 중…';
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080}},audio:false});
+    video.srcObject=stream;await video.play();
+  }catch(e){$('#startBtn').innerHTML='카메라를 켤 수 없어요<small>카메라 권한을 허용했는지, 주소가 https인지 확인하세요</small>';return}
+  $('#startBtn').style.display='none';$('#stopBtn').style.display='';$('#diagBtn').style.display='';
+  try{
+    track=stream.getVideoTracks()[0];const caps=track.getCapabilities?track.getCapabilities():{};
+    if(caps.focusMode&&caps.focusMode.includes('continuous'))track.applyConstraints({advanced:[{focusMode:'continuous'}]}).catch(()=>{});
+    setupZoom();setTimeout(()=>{if(!stream||hwZoom)return;let c={};try{c=track.getCapabilities()}catch(e){}if(c.zoom&&c.zoom.max>c.zoom.min)setupZoom()},1200);
+    if(caps.torch){const tb=$('#torch');tb.style.display='';let on=false;tb.onclick=()=>{on=!on;track.applyConstraints({advanced:[{torch:on}]}).catch(()=>{});tb.textContent=on?'🔦 끄기':'🔦'}}
+  }catch(e){}
+  try{if('wakeLock' in navigator)wake=await navigator.wakeLock.request('screen')}catch(e){}
+  $('#camTxt').textContent='찾는 중…';scanning=true;prevTiny=null;loop();
+};
+$('#stopBtn').onclick=()=>{scanning=false;$('#diagBtn').style.display='none';$('#zoomBox').style.display='none';video.style.transform='';$('#torch').style.display='none';if(stream)stream.getTracks().forEach(t=>t.stop());stream=null;try{wake&&wake.release()}catch(e){}$('#stopBtn').style.display='none';const b=$('#startBtn');b.style.display='';b.innerHTML='▶ 카메라 시작';$('#camTxt').textContent=''};
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&scanning)$('#stopBtn').click()});
+
+// 화면의 네모 칸 주변(위아래로 넉넉히)을 잘라서 보냄 → 다른 글자 섞임 감소, 전송량 감소
+const cv=document.createElement('canvas'),cx=cv.getContext('2d');
+const tv=document.createElement('canvas'),tx=tv.getContext('2d',{willReadFrequently:true});tv.width=64;tv.height=32;
+function cropRect(){
+  // 확대(CSS scale)가 걸려도 원래 틀 크기를 기준으로 계산 (video 자체 크기는 확대분이 포함됨)
+  const vw=video.videoWidth,vh=video.videoHeight;const box=video.parentElement.getBoundingClientRect(),gr=$('#guide').getBoundingClientRect();
+  const z=hwZoom?1:Number($('#zoom').value||1);
+  const sc=Math.max(box.width/vw,box.height/vh)*z;
+  const cxs=box.left+box.width/2,cys=box.top+box.height/2;
+  const toV=(x,y)=>[vw/2+(x-cxs)/sc,vh/2+(y-cys)/sc];
+  const gh=gr.height,padX=gr.width*.06,padY=gh*1.3;
+  let [x0,y0]=toV(gr.left-padX,gr.top-padY),[x1,y1]=toV(gr.right+padX,gr.bottom+padY);
+  x0=Math.max(0,x0);y0=Math.max(0,y0);x1=Math.min(vw,x1);y1=Math.min(vh,y1);
+  return [x0,y0,x1-x0,y1-y0];
+}
+function grabFrame(){
+  const [sx,sy,sw,sh]=cropRect();const s=Math.min(1,1280/Math.max(sw,sh));
+  cv.width=Math.round(sw*s);cv.height=Math.round(sh*s);cx.drawImage(video,sx,sy,sw,sh,0,0,cv.width,cv.height);
+  return cv.toDataURL('image/jpeg',.85);
+}
+// 흔들림 감지: 작은 흑백 화면을 직전 것과 비교
+let prevTiny=null;
+function steadyNow(){
+  const [sx,sy,sw,sh]=cropRect();tx.drawImage(video,sx,sy,sw,sh,0,0,tv.width,tv.height);
+  const d=tx.getImageData(0,0,tv.width,tv.height).data,g=new Uint8Array(tv.width*tv.height);
+  for(let i=0;i<g.length;i++)g[i]=(d[i*4]*3+d[i*4+1]*6+d[i*4+2])/10;
+  let ch=0;if(prevTiny)for(let i=0;i<g.length;i++)if(Math.abs(g[i]-prevTiny[i])>28)ch++;
+  const first=!prevTiny;prevTiny=g;return !first&&ch/g.length<0.12;
+}
+let lastSend=0,pauseUntil=0,shakyFor=0,lastShot=null,lastResp=null;
+async function loop(){
+  if(!scanning)return;
+  try{
+    if(!busy&&video.readyState>=2&&video.videoWidth){
+      const now=Date.now();const steady=steadyNow();
+      if(now>=pauseUntil&&now-lastSend>=cfg.gap){
+        if(cfg.steady&&!steady){if(++shakyFor>12)$('#camTxt').textContent='흔들려요 — 번호판에 맞추고 잠깐 멈춰주세요'}
+        else{shakyFor=0;busy=true;try{await scanFrame()}catch(e){$('#camTxt').textContent='오류: '+e.message;await sleep(1500)}busy=false}
+      }
+    }
+  }catch(e){}
+  setTimeout(loop,150);
+}
+function showUsage(n){if(n==null)return;const t=`이번 달 Vision 사용 ${n.toLocaleString()}건 (모든 폰 합계, 1,000건까지 무료)`;$('#usageMsg').textContent=t;$('#scanInfo').textContent=t}
+
+async function scanFrame(){
+  const url=grabFrame();lastSend=Date.now();
+  $('#guide').classList.add('send');
+  let j;try{j=await api('recognize',{image:url.split(',')[1]})}finally{$('#guide').classList.remove('send')}
+  lastShot=url;lastResp=j;showUsage(j.usage);
+  handleRead(j);
+}
+
+/* ---------- 읽은 결과 → 명단 매칭 ---------- */
+const recent=[],cool=new Map(),pcool=new Map();
+function seen(key,ms){const now=Date.now();while(recent.length&&now-recent[0].t>10000)recent.shift();return recent.filter(r=>r.k===key&&now-r.t<ms).length}
+const uniq=a=>[...new Set(a)];
+function matchRead(plates,text){
+  // 1) 번호판 전체 일치 → 바로 출석
+  const exact=plates.filter(p=>roster.has(p));
+  if(exact.length)return {ks:uniq(exact),key:'E'+uniq(exact).join(','),need:1,auto:onePerson(exact),read:exact[0]};
+  // 2) 한 글자만 다름 (OCR 오인식 가능) → 확인 카드
+  const fz=[];for(const p of plates)for(const k of roster.keys())if(!isTbd(k)&&k.length===p.length&&editDist(k,p)===1)fz.push(k);
+  if(fz.length)return {ks:uniq(fz),key:'F'+uniq(fz).join(','),need:2,auto:false,read:plates[0]};
+  // 3) 뒷자리 4숫자만 일치 (앞부분을 못 읽음) → 확인 카드
+  const runs=(String(text||'').replace(/[Oo]/g,'0').match(/\d[\d\s]{3,}/g)||[]).map(r=>r.replace(/\s/g,'')).filter(r=>r.length>=4&&r.length<=8);
+  const tails=uniq([...plates.map(d4),...runs.map(d4)]);const hits=[];for(const t of tails)if(byD4.has(t))hits.push(...byD4.get(t));
+  if(hits.length)return {ks:uniq(hits),key:'T'+uniq(hits).join(','),need:2,auto:false,read:plates[0]||runs.find(r=>byD4.has(d4(r)))||''};
+  // 4) 번호판은 읽었는데 명단에 없음
+  if(plates.length)return {ks:[],key:'?'+plates[0],need:2,auto:false,read:plates[0]};
+  return null;
+}
+function handleRead(j){
+  const plates=uniq((j.plates||[]).map(p=>normPlate(p.plate)));
+  $('#camTxt').innerHTML=plates.length?`읽은 번호: <b>${esc(plates.join(', '))}</b>`:'찾는 중…';
+  const m=matchRead(plates,j.text);if(!m)return;
+  const now=Date.now();const g=m.ks.length&&onePerson(m.ks)?pkey(roster.get(m.ks[0])):'';
+  if(g&&pcool.has(g)&&now-pcool.get(g)<10000)return;            // 방금 처리한 사람
+  recent.push({k:m.key,t:now});
+  if(seen(m.key,8000)<m.need)return;
+  if(cool.has(m.key)&&now-cool.get(m.key)<8000)return;
+  cool.set(m.key,now);if(g)pcool.set(g,now);pauseUntil=now+2500;
+  $('#guide').classList.add('hit');setTimeout(()=>$('#guide').classList.remove('hit'),800);
+  if(m.auto){hitKey(m.ks[0],'카메라');return}
+  beep(false);
+  if(m.ks.length){if(m.key[0]==='E')showCands(m.ks,'인식',true);else showCands(m.ks,m.read?`확인 필요 (읽은 번호 ${m.read})`:'확인 필요 (뒷자리 일치)',false)}
+  else{cur=null;$('#result').innerHTML=`<div class="status bad">미등록 차량 (${esc(m.read)})</div>`}
+}
+
+/* 진단: 마지막으로 보낸 사진과 읽은 글자 */
+$('#diagBtn').onclick=()=>{
+  if(!lastShot){toast('아직 보낸 사진이 없어요');return}
+  const j=lastResp||{};cur=null;
+  $('#result').innerHTML=`<div class="card"><div style="font-weight:700;margin-bottom:6px">마지막으로 보낸 사진</div><img src="${lastShot}" style="width:100%;border:1px solid var(--line);border-radius:8px"><div class="msg" style="color:var(--ink)">번호판으로 본 것: ${esc((j.plates||[]).map(p=>p.plate).join(', ')||'없음')}\n읽은 글자 전체: ${esc(j.text||'(없음)')}\n처리 시간: ${j.ms??'?'}ms</div></div>`;
+};
+
+/* ---------- 출석현황 ---------- */
+$('#ls').oninput=renderList;
+function renderList(){
+  const q=$('#ls').value.trim(),qd=q.replace(/\D/g,'');
+  const ordOf=p=>p.ord!=null?p.ord:1e6;
+  let arr=people().map(k=>[k,roster.get(k)]).sort((a,b)=>ordOf(a[1])-ordOf(b[1])||(a[1].name||'').localeCompare(b[1].name||'','ko'));
+  if(filter==='in')arr=arr.filter(([k])=>attOf(k));if(filter==='out')arr=arr.filter(([k])=>!attOf(k));
+  if(q)arr=arr.filter(([k,p])=>(p.name||'').includes(q)||(p.org||'').includes(q)||(p.title||'').includes(q)||(qd&&sibs(k).some(x=>x.replace(/\D/g,'').includes(qd))));
+  if(!roster.size){$('#lst').innerHTML='<div class="empty">아직 명단이 없어요.<br>‘설정’에서 구글 시트를 연결하세요.</div>';return}
+  if(!arr.length){$('#lst').innerHTML='<div class="empty">해당하는 사람이 없어요.</div>';return}
+  $('#lst').innerHTML=arr.map(([k,p])=>{const a=attOf(k);return `<div class="item" data-open="${esc(k)}">${avatar(k,p,'thumb')}<div class="mid"><div class="n">${esc(p.name)} <span style="font-weight:400;font-size:13px;color:var(--sub)">${esc(p.title)}</span></div><div class="s w">${esc(p.org)}</div><div class="s w pl">${esc(vehTxt(k))}</div></div><button class="chk ${a?'on':''}" data-c="${esc(k)}">${a?'✓ '+tm(a.at):'출석'}</button></div>`}).join('');
+  $('#lst').querySelectorAll('.chk').forEach(b=>b.onclick=e=>{e.stopPropagation();const k=b.dataset.c;attOf(k)?cancel(k):checkIn(k,'수동')});
+  $('#lst').querySelectorAll('[data-open]').forEach(el=>el.onclick=()=>openInfo(el.dataset.open));
+}
+
+/* ---------- 설정 ---------- */
+const pick=(row,keys)=>{for(const k of Object.keys(row)){const kk=k.replace(/\s/g,'');if(keys.some(x=>kk.includes(x)))return String(row[k]).trim()}return ''};
+const rowToPerson=r=>({plate:normPlate(pick(r,['차량번호','번호판','차번','plate'])),org:pick(r,['소속','회사','기관','부서']),name:pick(r,['이름','성명','name']),title:pick(r,['직함','직위','직책','직급','title']),car:pick(r,['차종']),color:pick(r,['색상','색깔']),drive:pick(r,['운전']),phone:pick(r,['본인']),aide:(()=>{for(const k of Object.keys(r))if(k.replace(/\s/g,'')==='수행원')return String(r[k]).trim();return ''})(),aidePhone:pick(r,['수행원연락','수행연락']),memo:pick(r,['메모','비고'])});
+$('#rosterFile').onchange=async e=>{
+  const f=e.target.files[0];e.target.value='';if(!f)return;const msg=$('#rosterMsg');
+  if(!connected()){msg.textContent='먼저 구글 시트를 연결하세요.';return}
+  try{
+    const wb=XLSX.read(await f.arrayBuffer(),{type:'array'});const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:'',raw:false});
+    const ps=rows.map(rowToPerson).filter(p=>p.plate&&p.name);
+    if(!ps.length){msg.textContent='읽을 수 있는 행이 없어요. 첫 줄에 차량번호, 소속, 이름, 직함이 있는지 확인하세요.';return}
+    msg.innerHTML=`${ps.length}행을 읽었어요 (${new Set(ps.map(pkey)).size}명). 시트 명단을 이 내용으로 바꿀까요?<div class="row"><button class="btn pri sm" id="rosterGo">시트에 저장</button><button class="btn sm" id="rosterNo">취소</button></div>`;
+    $('#rosterNo').onclick=()=>{msg.textContent=''};
+    $('#rosterGo').onclick=async()=>{
+      msg.textContent='시트에 저장 중…';
+      try{const r=await api('saveRoster',{rows:ps});await pullRoster(false);const dup=[...byD4.values()].filter(v=>v.length>1&&!onePerson(v)).length;
+        msg.textContent=`${r.saved}행 저장 완료 (건너뛴 행 ${rows.length-ps.length}건)`+(dup?`\n뒷자리 4숫자가 겹치는 차량 ${dup}쌍: 인식되면 후보 중에서 고르게 돼요.`:'')}
+      catch(err){msg.textContent='저장 실패: '+err.message}
+    };
+  }catch(err){msg.textContent='파일을 읽지 못했어요: '+(err.message||err)}
+};
+function dl(name,blob){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1000)}
+const XT='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+$('#tplBtn').onclick=()=>{const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['차량번호','소속','이름','직함','차종','색상','운전','본인 연락처','수행원','수행원 연락처','메모'],['12가3456','○○주식회사','홍길동','대표이사','카니발','검정','기사운전','010-0000-0000','김비서 / 이비서','010-1111-1111 / 010-2222-2222','']]),'명단');dl('차량명단_양식.xlsx',new Blob([XLSX.write(wb,{bookType:'xlsx',type:'array'})],{type:XT}))};
+async function shrink(f){const b=await createImageBitmap(f);const s=Math.min(1,480/Math.max(b.width,b.height));const c=document.createElement('canvas');c.width=Math.round(b.width*s);c.height=Math.round(b.height*s);c.getContext('2d').drawImage(b,0,0,c.width,c.height);return c.toDataURL('image/jpeg',.85).split(',')[1]}
+$('#photoFiles').onchange=async e=>{
+  const files=[...e.target.files];e.target.value='';const msg=$('#photoMsg');
+  if(!connected()){msg.textContent='먼저 구글 시트를 연결하세요.';return}
+  let ok=0;const miss=[],fail=[];
+  for(const f of files){
+    const base=f.name.replace(/\.[^.]+$/,'').trim();
+    if(!photoKey(base)){miss.push(f.name);continue}
+    try{await api('savePhoto',{name:base,data:await shrink(f)});ok++}catch(err){fail.push(f.name)}
+    msg.textContent=`드라이브에 올리는 중… ${ok}/${files.length}`;
+  }
+  msg.textContent=`사진 ${ok}장 저장. 모든 폰에서 ‘명단·사진 새로 받기’를 누르면 보여요.`+(miss.length?`\n명단에 없는 이름 ${miss.length}개: ${miss.slice(0,10).join(', ')}`:'')+(fail.length?`\n실패 ${fail.length}개: ${fail.slice(0,10).join(', ')}`:'');
+  if(ok)pullRoster(true);
+};
+$('#addBtn').onclick=async()=>{
+  const p={plate:normPlate($('#fPlate').value),name:$('#fName').value.trim(),org:$('#fOrg').value.trim(),title:$('#fTitle').value.trim()};
+  if(!p.plate||!p.name){toast('차량번호와 이름은 필수예요');return}
+  try{await api('saveRoster',{rows:[p],append:true});['#fPlate','#fName','#fOrg','#fTitle'].forEach(s=>$(s).value='');await pullRoster(false);toast(p.name+' 추가됨')}
+  catch(err){toast('추가 실패: '+err.message)}
+};
+$('#gapSel').onchange=()=>{cfg.gap=Number($('#gapSel').value)||1500;saveCfg()};
+$('#steadyChk').onchange=()=>{cfg.steady=$('#steadyChk').checked;saveCfg()};
+$('#expBtn').onclick=()=>{
+  const arr=people().map(k=>[k,roster.get(k)]).sort((a,b)=>(a[1].ord??1e6)-(b[1].ord??1e6));
+  const rows=[['소속','이름','직함','차량번호','차종(색상)','출석','도착시각','도착차량','방법'],...arr.map(([k,p])=>{const a=attOf(k);const ak=sibs(k).find(x=>att.has(x));return [p.org,p.name,p.title,plateTxt(k),sibs(k).map(x=>carTxt(roster.get(x))).filter(Boolean).join(' / '),a?'O':'',a?new Date(a.at).toLocaleString('ko-KR'):'',ak||'',a?a.method:'']})];
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(rows),'출석');const d=new Date();
+  dl(`출석결과_${d.getMonth()+1}월${d.getDate()}일.xlsx`,new Blob([XLSX.write(wb,{bookType:'xlsx',type:'array'})],{type:XT}));
+};
+function twoTap(btn,label,fn){let armed=false,t;btn.onclick=async()=>{if(!armed){armed=true;btn.textContent='한 번 더 누르면 실행';t=setTimeout(()=>{armed=false;btn.textContent=label},3000);return}clearTimeout(t);armed=false;await fn();btn.textContent=label}}
+twoTap($('#resetAtt'),'출석 기록 초기화 (모든 폰)',async()=>{
+  try{if(connected())await api('resetAtt');await idb.clear('att');att=new Map();renderAll();$('#resetMsg').textContent='출석 기록을 지웠어요.'}
+  catch(e){$('#resetMsg').textContent='초기화 실패: '+e.message}
+});
+
+/* ---------- 시작 ---------- */
+(async()=>{
+  try{
+    await load();
+    const h=new URLSearchParams(location.hash.slice(1));
+    if(h.get('url')&&h.get('token')){cfg.url=h.get('url');cfg.token=h.get('token');await saveCfg();$('#cUrl').value=cfg.url;$('#cToken').value=cfg.token;history.replaceState(null,'',location.pathname+location.search)}
+    if(connected()){
+      $('#startBtn').innerHTML='▶ 카메라 시작<small>번호판을 네모 칸에 맞추면 자동으로 출석 처리돼요</small>';
+      const first=!roster.size;
+      if(first)$('#result').innerHTML='<div class="status dup" data-loadmsg>시트에서 명단·사진 받는 중…</div>';
+      await pullRoster(first,first?{set textContent(v){if(!$('#result [data-loadmsg]'))return;$('#result').innerHTML=`<div class="status dup" data-loadmsg>${esc(v)}</div>`}}:null);
+      if(first)setTimeout(()=>{if($('#result [data-loadmsg]'))$('#result').innerHTML=''},3000);
+      pull();api('ping').then(p=>showUsage(p.usage)).catch(()=>{});
+    }
+  }catch(e){toast('저장소를 열 수 없어요: '+e)}
+})();
+</script>
+</body>
+</html>
